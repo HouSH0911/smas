@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 20px;
+        }
+        .alert-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .alert-header {
+            background: linear-gradient(135deg, #ffcc00, #e6b800);
+            color: black;
+            padding: 20px;
+            text-align: center;
+        }
+        .alert-content {
+            padding: 25px;
+            line-height: 1.6;
+            color: #343a40;
+        }
+        .alert-title {
+            font-size: 1.4em;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        .alert-detail {
+            margin: 15px 0;
+        }
+        .alert-detail p {
+            margin: 5px 0;
+        }
+        .alert-footer {
+            text-align: center;
+            padding: 15px;
+            font-size: 0.9em;
+            color: #6c757d;
+            border-top: 1px solid #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <div class="alert-container">
+        <div class="alert-header">
+            <h2>普通告警通知</h2>
+        </div>
+        <div class="alert-content">
+            <div class="alert-title">⚠️ {{.Subject}}</div>
+            <div class="alert-detail">
+                <p><strong>服务器地址:</strong> {{.Server}}</p>
+                <p><strong>告警详情:</strong> {{.Message}}</p>
+                {{if .Value}}<p><strong>当前值:</strong> {{.Value}}</p>{{end}}
+                {{if .Threshold}}<p><strong>阈值:</strong> {{.Threshold}}</p>{{end}}
+                {{if .Action}}<p><strong>建议操作:</strong> {{.Action}}</p>{{end}}
+            </div>
+        </div>
+        <div class="alert-footer">
+            服务器邮件告警监控系统 | {{.Timestamp}}
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,44 @@
+{
+  "email": {
+    "from": "pnetAlertMail@163.com",
+    "password": "HMijrvU3zBShJQ39",
+    "smtpHost": "10.53.192.57",
+    "smtpPort": "465",
+    "recipients": [
+      "houshenghai@haohandata.com.cn",
+      "xueyongman@haohandata.com.cn"
+    ]
+  },
+  "monitor": {
+    "process": true,
+    "port": true,
+    "ping": true,
+    "resource": true,
+    "dir": true
+    
+  },
+  "servers": [
+     {
+      "address": ["10.47.144.145-150"],
+      "port": "2323",
+      "cpuThreshold": 90.0,
+      "memoryThreshold": 99.88,
+      "diskThreshold": 70.0
+    },
+    {
+      "address": ["10.47.144.145"],
+      "port": "6060",
+      "cpuThreshold": 90.0,
+      "memoryThreshold": 99.88,
+      "diskThreshold": 70.0
+    },
+    {
+      "address": ["10.47.144.160", "10.47.144.161"],
+      "port": "2323",
+      "cpuThreshold": 90.0,
+      "memoryThreshold": 99.88,
+      "diskThreshold": 70.0,
+      "excludeMountPoints": [ "/media" ]
+    }
+  ]
+}
