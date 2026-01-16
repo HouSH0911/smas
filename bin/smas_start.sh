@@ -1,7 +1,7 @@
 #!/bin/sh
-PRO_PATH="/home/haohan/tmas/bin"
-PROGRAM="tmas"
-WATCH_PROGRAM='tmas_start.sh'
+PRO_PATH="/home/haohan/smas/bin"
+PROGRAM="smas_v2.4.2_x86"
+WATCH_PROGRAM='smas_start.sh'
 COUNT=0
 
 function rand()
@@ -50,7 +50,7 @@ while true ; do
         PRO_NOW_AGAIN=`pidof "$PROGRAM" | wc -l`
         if [ $PRO_NOW_AGAIN -lt 1 ]; then
             cd $PRO_PATH
-            nohup stdbuf -oL ./$PROGRAM >> $PRO_PATH/../log/tmas_console.log 2>&1 &
+            nohup stdbuf -oL ./$PROGRAM >> $PRO_PATH/../log/smas_console.log 2>&1 &
         fi
     fi
 sleep 2
