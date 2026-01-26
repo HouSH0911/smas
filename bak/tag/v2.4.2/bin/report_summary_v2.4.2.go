@@ -430,7 +430,7 @@ func sendSummaryReport() {
 	// ==========================================
 	// A. 发送邮件 (HTML 表格格式)
 	// ==========================================
-	if config.AlertMethods.Email && config.EnableEmail {
+	if config.EnableEmail {
 		// 构建HTML内容
 		htmlContent := buildEmailWithStats(title, nowStr, records, stats)
 
@@ -447,7 +447,8 @@ func sendSummaryReport() {
 	// ==========================================
 	// B. 发送企业微信 (Markdown摘要 + CSV文件)
 	// ==========================================
-	if config.AlertMethods.WechatWork && config.WechatWork.Enabled {
+	// if config.AlertMethods.WechatWork && config.WechatWork.Enabled {
+	if config.WechatWork.Enabled {
 		// 1. 构建Markdown摘要消息
 		mdContent := buildWechatSummaryWithStats(title, nowStr, records, stats)
 
