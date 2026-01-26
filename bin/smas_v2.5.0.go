@@ -37,6 +37,8 @@ type Server struct {
 	ResourceCheck   *bool `json:"resourceCheck"`   // 资源(CPU/内存/磁盘)检测开关
 	DirectoryCheck  *bool `json:"directoryCheck"`  // 目录/文件检测开关
 	TargetPortCheck *bool `json:"targetPortCheck"` // 目标端口(raport)检测开关
+	// *** v2.5.0新增：端口与进程的关联映射 ***
+	PortProcessMap map[string]string `json:"portProcessMap"`
 }
 
 // 邮件配置的结构体

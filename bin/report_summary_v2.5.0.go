@@ -3,14 +3,65 @@ package main
 import (
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/smtp"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
+
+const historyFileName = "alert_history.json"
+
+// 保存告警历史到文件
+func saveAlertHistory() {
+	// 获取项目根目录 (复用 main.go 中的逻辑，或者这里简单处理，假设在 bin 同级或 config 同级)
+	// 这里为了简单，建议直接保存到 log 目录或者 config 目录，这里假设和 config.json 同级
+	historyPath := filepath.Join(filepath.Dir(configPath), historyFileName)
+
+	data, err := json.MarshalIndent(alertHistory, "", "  ")
+	if err != nil {
+		log.Printf("序列化告警历史失败: %v", err)
+		return
+	}
+
+	err = os.WriteFile(historyPath, data, 0644)
+	if err != nil {
+		log.Printf("保存告警历史文件失败: %v", err)
+	}
+}
+
+// 从文件加载告警历史
+func LoadAlertHistory() { // 首字母大写供 main 调用
+	historyPath := filepath.Join(filepath.Dir(configPath), historyFileName)
+
+	// 如果文件不存在，直接返回
+	if _, err := os.Stat(historyPath); os.IsNotExist(err) {
+		return
+	}
+
+	data, err := os.ReadFile(historyPath)
+	if err != nil {
+		log.Printf("读取告警历史文件失败: %v", err)
+		return
+	}
+
+	alertHistoryMutex.Lock()
+	defer alertHistoryMutex.Unlock()
+
+	var loadedHistory []AlertRecord
+	if err := json.Unmarshal(data, &loadedHistory); err != nil {
+		log.Printf("解析告警历史文件失败: %v", err)
+		return
+	}
+
+	alertHistory = loadedHistory
+	log.Printf("成功从本地缓存加载了 %d 条历史告警记录", len(alertHistory))
+}
 
 // recordAlert 记录告警到历史
 func recordAlert(alertLevel string, data EmailTemplateData) {
