@@ -89,6 +89,8 @@ func recordAlert(alertLevel string, data EmailTemplateData) {
 	if len(alertHistory) > 1000 {
 		alertHistory = alertHistory[len(alertHistory)-1000:]
 	}
+	// 保存到文件 ***
+	saveAlertHistory()
 }
 
 // extractAlertType 从消息中提取告警类型
@@ -464,6 +466,9 @@ func sendSummaryReport() {
 	// 重置切片，准备记录下一周期的
 	alertHistory = []AlertRecord{}
 	alertHistoryMutex.Unlock()
+
+	// 保存空的列表到文件（相当于清空文件）
+	saveAlertHistory()
 
 	count := len(records)
 	if count == 0 {

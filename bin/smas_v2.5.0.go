@@ -337,6 +337,8 @@ func main() {
 	if err := reloadConfig(); err != nil {
 		log.Fatalf("Failed to load initial configuration: %v", err)
 	}
+	// 加载历史告警记录 ***
+	LoadAlertHistory() // 调用 report_summary 中定义的函数
 
 	go startConfigWatcher()
 
