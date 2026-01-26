@@ -914,8 +914,7 @@ func handleResourceStatus(address, key string, metrics Metrics, server Server, s
 			Timestamp: time.Now().Format("2006-01-02 15:04:05"),
 		}
 		sendAlert("warning", data)
-		log.Printf("服务器 %s 内存利用率已达到 %s 超过阈值，请确认告警邮件已发送",
-			address, metrics.MemoryUsage)
+		log.Printf("服务器 %s 内存利用率已达到 %.2f%% 超过阈值，请确认告警邮件已发送", address, metrics.MemoryUsage)
 		atomic.StoreInt32(&status.MemAlertSent, 1)
 	} else if metrics.MemoryUsage < server.MemoryThreshold && memAlertSent {
 		data := EmailTemplateData{
@@ -926,8 +925,7 @@ func handleResourceStatus(address, key string, metrics Metrics, server Server, s
 			Timestamp: time.Now().Format("2006-01-02 15:04:05"),
 		}
 		sendAlert("recovery", data)
-		log.Printf("服务器 %s 内存利用率已降到 %s ，请确认恢复邮件已发送",
-			address, metrics.MemoryUsage)
+		log.Printf("服务器 %s 内存利用率已降到 %.2f%% ，请确认恢复邮件已发送", address, metrics.MemoryUsage)
 		atomic.StoreInt32(&status.MemAlertSent, 0)
 	}
 
@@ -959,7 +957,7 @@ func handleResourceStatus(address, key string, metrics Metrics, server Server, s
 				Timestamp: time.Now().Format("2006-01-02 15:04:05"),
 			}
 			sendAlert("critical", data)
-			log.Printf("服务器 %s 挂载点 %s 利用率已达到 %s 超过阈值，请确认告警邮件已发送",
+			log.Printf("服务器 %s 挂载点 %s 利用率已达到 %.2f%% 超过阈值，请确认告警邮件已发送",
 				address, mountpoint, usage)
 			(*diskMap)[mountpoint] = 1
 		} else if usage < server.DiskThreshold && alertSent == 1 {
@@ -971,7 +969,7 @@ func handleResourceStatus(address, key string, metrics Metrics, server Server, s
 				Timestamp: time.Now().Format("2006-01-02 15:04:05"),
 			}
 			sendAlert("recovery", data)
-			log.Printf("服务器 %s 挂载点 %s 利用率已降到 %s ，请确认恢复邮件已发送",
+			log.Printf("服务器 %s 挂载点 %s 利用率已降到 %.2f%% ，请确认恢复邮件已发送",
 				address, mountpoint, usage)
 			(*diskMap)[mountpoint] = 0
 		}

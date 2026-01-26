@@ -326,10 +326,10 @@ func main() {
 	if err := initTemplates(templatesDir); err != nil {
 		log.Fatalf("Failed to initialize email templates: %v", err)
 	}
-	if err != nil {
-		fmt.Printf("Error determining project root: %v\n", err)
-		return
-	}
+	// if err != nil {
+	// 	fmt.Printf("Error determining project root: %v\n", err)
+	// 	return
+	// }
 	// 获取项目文件夹下conf目录下的config.json路径
 	configPath = filepath.Join(projectRoot, "conf", "config.json")
 
