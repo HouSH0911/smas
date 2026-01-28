@@ -41,7 +41,7 @@
   "udpPortDetectTimeout":800,
   "processRestartWindow": 180,
   "serverRestartWindow": 600,
-  "portRestartWindow": 300,
+  "portRestartWindow": 320,
   "monitor": {
     "process": true,
     "port": true,
@@ -50,6 +50,23 @@
     "dir": true,
     "raport": false
   },
+  "portProcessMappings": [
+    {
+      "name": "UATG程序服务", 
+      "ports": ["2323", "6060"],
+      "processes": ["uatg", "nurse.sh"]
+    },
+    {
+      "name": "HDF服务",
+      "ports": ["6011", "2000"],
+      "processes": ["/hdf/bin/hdf"]
+    },
+    {
+      "name": "流量采集TCS服务",
+      "ports": ["2323", "6060"],
+      "processes": ["tcs", "nurse.sh"]
+    }
+  ],
   "servers": [
      {
       "addresses": ["10.47.144.145-150"],

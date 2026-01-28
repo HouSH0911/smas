@@ -37,8 +37,6 @@ type Server struct {
 	ResourceCheck   *bool `json:"resourceCheck"`   // 资源(CPU/内存/磁盘)检测开关
 	DirectoryCheck  *bool `json:"directoryCheck"`  // 目录/文件检测开关
 	TargetPortCheck *bool `json:"targetPortCheck"` // 目标端口(raport)检测开关
-	// *** v2.5.0新增：端口与进程的关联映射 ***
-	PortProcessMap map[string]string `json:"portProcessMap"`
 }
 
 // 邮件配置的结构体
@@ -81,6 +79,8 @@ type Config struct {
 	ProcessRestartWindow int `json:"processRestartWindow"` // 进程重启判断窗口(秒)
 	ServerRestartWindow  int `json:"serverRestartWindow"`  // 服务器重启判断窗口(秒)
 	PortRestartWindow    int `json:"portRestartWindow"`    // 端口通信重启判断窗口(秒)
+	// *** v2.5.0新增字段 ***
+	PortProcessMappings []PortProcessMapping `json:"portProcessMappings"`
 }
 
 // 企业微信消息结构
@@ -121,6 +121,13 @@ type AlertRecord struct {
 	Action     string `json:"action,omitempty"`
 	Status     string `json:"status,omitempty"`
 	Port       string `json:"port,omitempty"`
+}
+
+// v2.5.0新增端口与进程映射结构体
+type PortProcessMapping struct {
+	Name      string   `json:"name"`      // 映射组名称，方便日志打印
+	Ports     []string `json:"ports"`     // 该组包含的端口
+	Processes []string `json:"processes"` // 该组包含的进程
 }
 
 // 服务器告警发送状态的结构体
@@ -326,11 +333,7 @@ func main() {
 	if err := initTemplates(templatesDir); err != nil {
 		log.Fatalf("Failed to initialize email templates: %v", err)
 	}
-	// if err != nil {
-	// 	fmt.Printf("Error determining project root: %v\n", err)
-	// 	return
-	// }
-	// 获取项目文件夹下conf目录下的config.json路径
+
 	configPath = filepath.Join(projectRoot, "conf", "config.json")
 
 	// 初始加载配置
@@ -370,16 +373,7 @@ func main() {
 	defer pingTicker.Stop()
 	//defer dirTicker.Stop()
 	defer targetPortTicker.Stop()
-	// 立即执行一次所有检查作为启动
-	// log.Println("===== Initial monitoring run START =====")
-	// go runPingChecks(config, statuses)
-	// go runPortChecks(config, statuses)
-	// go runProcessChecks(config, statuses)
-	// go runResourceChecks(config, statuses)
-	// go runDirectoryChecks(config, statuses)
-	// go runTargetPortChecks(config, statuses)
-	// log.Println("===== Initial monitoring run END =====")
-	// --- 定时任务：每5分钟点后的第2分钟执行目录检查 ---
+
 	go func() {
 		for {
 			now := time.Now()
@@ -744,17 +738,3 @@ func sendAlert(alertLevel string, data EmailTemplateData) {
 	}
 
 }
-
-// 发送critical恢复通知（邮件+企业微信）
-// func sendCriticalRecoveryAlert(data EmailTemplateData) {
-// 	recordAlert("recovery", data)
-
-// 	// critical恢复：邮件+企业微信
-// 	if config.AlertMethods.Email && config.EnableEmail {
-// 		if emailQueue != nil {
-// 			emailQueue.AddTask(config.Email, "recovery", data)
-// 		} else {
-// 			sendEmail(config.Email, "recovery", data)
-// 		}
-// 	}
-// }

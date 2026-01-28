@@ -30,6 +30,17 @@ func runPortChecks(config Config, statuses map[string]*ServerStatus) {
 		log.Printf("[ monitorPorts ] function completed (duration: %.4fs)", duration.Seconds())
 		portRunning.Store(false)
 	}()
+	// === v2.5.0新增：构建全局端口->进程查找表 ===
+	// 目的：将配置列表转换为 Map
+	// Key: 端口号, Value: 需要检查的进程列表
+	portToProcessMap := make(map[string][]string)
+	for _, mapping := range config.PortProcessMappings {
+		for _, p := range mapping.Ports {
+			// 将该端口对应的所有进程加入列表
+			// 这里可能会有重复，但通常配置不会重复，为了简单直接追加
+			portToProcessMap[p] = append(portToProcessMap[p], mapping.Processes...)
+		}
+	}
 
 	var wg sync.WaitGroup
 	jobChan := make(chan serverJob, maxWorkers)
@@ -73,7 +84,7 @@ func runPortChecks(config Config, statuses map[string]*ServerStatus) {
 				}
 				statusesMutex.Unlock()
 
-				handlePortStatus(job.address, job.port, job.key, portState, status, config)
+				handlePortStatus(job.address, job.port, job.key, portState, status, config, portToProcessMap)
 			}
 		}()
 	}
@@ -662,7 +673,7 @@ func handlePingStatus(address, key string, pingState bool, status *ServerStatus,
 }
 
 // 处理端口状态
-func handlePortStatus(address, port, key string, portState bool, status *ServerStatus, config Config) {
+func handlePortStatus(address, port, key string, portState bool, status *ServerStatus, config Config, portToProcessMap map[string][]string) {
 	status.PortMutex.Lock()
 	defer status.PortMutex.Unlock()
 	// 获取配置窗口，默认 60秒
@@ -679,9 +690,40 @@ func handlePortStatus(address, port, key string, portState bool, status *ServerS
 		status.PortStates[port] = tracker
 	}
 
-	//portAlertSent := atomic.LoadInt32(&status.PortAlertSent) == 1
 	if !portState {
 		// === 端口不通 (DOWN) ===
+		// [新增逻辑] 检查关联进程是否异常
+		shouldSuppress := false
+		var abnormalProcName string
+
+		if targetProcs, ok := portToProcessMap[port]; ok {
+			// 为了安全读取进程状态，需要加 ProcessMutex 锁
+			// 安全性说明：当前持有 PortMutex -> 获取 ProcessMutex。
+			// 只要代码中没有"持有 ProcessMutex 时去获取 PortMutex"的情况，就不会死锁。
+			status.ProcessMutex.Lock()
+			for _, procName := range targetProcs {
+				if procTracker, procExists := status.ProcessStates[procName]; procExists {
+					// 如果关联进程 FirstFailureTime 不为零，说明进程挂了/重启中
+					if !procTracker.FirstFailureTime.IsZero() {
+						shouldSuppress = true
+						abnormalProcName = procName
+						break
+					}
+				}
+			}
+			status.ProcessMutex.Unlock()
+		}
+
+		if shouldSuppress {
+			// 如果决定压制，我们依然记录故障时间但不发邮件
+			if tracker.FirstFailureTime.IsZero() {
+				tracker.FirstFailureTime = now
+			}
+			log.Printf("🚫 [压制告警] 服务器 %s 端口 %s 异常，但检测到关联进程 [%s] 异常，优先显示进程告警。", address, port, abnormalProcName)
+			return // 直接返回，不发送端口告警
+		}
+
+		// --- 正常端口不通告警逻辑 ---
 		if tracker.FirstFailureTime.IsZero() {
 			// 刚发现不通：记录时间，进入观察期
 			tracker.FirstFailureTime = now
@@ -707,6 +749,21 @@ func handlePortStatus(address, port, key string, portState bool, status *ServerS
 		// === 端口通 (UP) ===
 		if !tracker.FirstFailureTime.IsZero() {
 			timeSinceDown := now.Sub(tracker.FirstFailureTime)
+			// [新增逻辑] 恢复时检查关联进程，如果是进程重启带动的端口重启，则压制端口恢复/闪断告警
+			shouldSuppressRecovery := false
+			if targetProcs, ok := portToProcessMap[port]; ok {
+				status.ProcessMutex.Lock()
+				for _, procName := range targetProcs {
+					if procTracker, procExists := status.ProcessStates[procName]; procExists {
+						// 进程也还在异常状态（FirstFailureTime非零），说明是一起恢复中
+						if !procTracker.FirstFailureTime.IsZero() {
+							shouldSuppressRecovery = true
+							break
+						}
+					}
+				}
+				status.ProcessMutex.Unlock()
+			}
 
 			if tracker.AlertSent {
 				// 之前发过失联告警 -> 发送恢复通知
@@ -719,17 +776,22 @@ func handlePortStatus(address, port, key string, portState bool, status *ServerS
 				sendAlert("recovery", data)
 				log.Printf("服务器 %s 端口 %s 通信恢复，发送恢复邮件", address, port)
 			} else {
-				// 没发过告警就恢复了 -> 判定为 端口闪断/进程重启
-				data := EmailTemplateData{
-					Subject:   "🔄端口重启/闪断告警",
-					Server:    address,
-					Message:   fmt.Sprintf("服务器端口 %s 发生闪断或重启 (中断时长约 %s)。", port, timeSinceDown.Round(time.Second)),
-					Action:    "检测到端口短时间不可用，请关注服务稳定性。",
-					Timestamp: now.Format("2006-01-02 15:04:05"),
+				// 没发过严重告警 -> 判定为闪断/重启
+				if shouldSuppressRecovery {
+					log.Printf("🚫 [压制告警] 服务器 %s 端口 %s 重启/闪断，因关联进程也在重启周期内，忽略此条。", address, port)
+				} else {
+					// 没发过告警就恢复了 -> 判定为 端口闪断/进程重启
+					data := EmailTemplateData{
+						Subject:   "🔄端口重启/闪断告警",
+						Server:    address,
+						Message:   fmt.Sprintf("服务器端口 %s 发生闪断或重启 (中断时长约 %s)。", port, timeSinceDown.Round(time.Second)),
+						Action:    "检测到端口短时间不可用，请关注服务稳定性。",
+						Timestamp: now.Format("2006-01-02 15:04:05"),
+					}
+					// 建议使用 warning 级别
+					sendAlert("severe", data)
+					log.Printf("服务器 %s 端口 %s 检测到闪断/重启，发送告警", address, port)
 				}
-				// 建议使用 warning 级别
-				sendAlert("severe", data)
-				log.Printf("服务器 %s 端口 %s 检测到闪断/重启，发送告警", address, port)
 			}
 
 			// 重置状态
