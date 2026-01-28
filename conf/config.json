@@ -62,6 +62,11 @@
       "processes": ["/hdf/bin/hdf"]
     },
     {
+      "name": "DSU服务",
+      "ports": ["23000"],
+      "processes": ["dsu", "pmon"]
+    },
+    {
       "name": "流量采集TCS服务",
       "ports": ["2323", "6060"],
       "processes": ["tcs", "nurse.sh"]

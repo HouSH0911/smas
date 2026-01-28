@@ -9,12 +9,14 @@ import (
 	"net/http"
 	"net/smtp"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -323,7 +325,7 @@ const (
 // author: houshenghai
 // date: 2025-02-30
 func main() {
-	// 获取项目文件夹路径
+	// 1. 初始化路径与模版
 	projectRoot, err := getProjectRoot()
 	if err != nil {
 		fmt.Printf("Error determining project root: %v\n", err)
@@ -336,11 +338,11 @@ func main() {
 
 	configPath = filepath.Join(projectRoot, "conf", "config.json")
 
-	// 初始加载配置
+	// 2. 加载配置
 	if err := reloadConfig(); err != nil {
 		log.Fatalf("Failed to load initial configuration: %v", err)
 	}
-	// 加载历史告警记录 ***
+	// 3. 加载历史告警 (用于持久化)
 	LoadAlertHistory() // 调用 report_summary 中定义的函数
 
 	go startConfigWatcher()
@@ -348,7 +350,7 @@ func main() {
 	// 初始化全局状态变量
 	statuses := make(map[string]*ServerStatus)
 
-	// 初始化邮件系统 (在加载配置后)
+	// 4. 初始化邮件发送
 	initSMTPPool(config.Email, 5) // 连接池大小5
 	initEmailQueue(3)             // 3个邮件发送协程
 
@@ -359,7 +361,7 @@ func main() {
 		go startReportScheduler()
 	}
 
-	// 创建不同频率的 Ticker
+	// 5. 初始化定时器
 	portTicker := time.NewTicker(time.Duration(portCheckFreq) * time.Second)
 	processTicker := time.NewTicker(time.Duration(processCheckFreq) * time.Second)
 	resourceTicker := time.NewTicker(time.Duration(resourceCheckFreq) * time.Second)
@@ -367,12 +369,11 @@ func main() {
 	//dirTicker := time.NewTicker(time.Duration(dirCheckFreq) * time.Second)
 	targetPortTicker := time.NewTicker(time.Duration(targetPortFreq) * time.Second)
 
-	defer portTicker.Stop()
-	defer processTicker.Stop()
-	defer resourceTicker.Stop()
-	defer pingTicker.Stop()
-	//defer dirTicker.Stop()
-	defer targetPortTicker.Stop()
+	// defer portTicker.Stop()
+	// defer processTicker.Stop()
+	// defer resourceTicker.Stop()
+	// defer pingTicker.Stop()
+	// defer targetPortTicker.Stop()
 
 	go func() {
 		for {
@@ -393,23 +394,47 @@ func main() {
 		}
 	}()
 
-	for {
-		select {
-		case <-portTicker.C:
-			// 启动 goroutine 执行，防止阻塞 select 循环
-			go runPortChecks(config, statuses)
-		case <-processTicker.C:
-			go runProcessChecks(config, statuses)
-		case <-resourceTicker.C:
-			go runResourceChecks(config, statuses)
-		case <-pingTicker.C:
-			go runPingChecks(config, statuses)
-		//case <-dirTicker.C:
-		//go runDirectoryChecks(config, statuses)
-		case <-targetPortTicker.C:
-			go runTargetPortChecks(config, statuses)
+	// 6. [新增] 创建退出信号通道
+	quitChan := make(chan os.Signal, 1)
+	signal.Notify(quitChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// 7. 启动主循环 (非阻塞)
+	go func() {
+		for {
+			select {
+			case <-portTicker.C:
+				// 启动 goroutine 执行，防止阻塞 select 循环
+				go runPortChecks(config, statuses)
+			case <-processTicker.C:
+				go runProcessChecks(config, statuses)
+			case <-resourceTicker.C:
+				go runResourceChecks(config, statuses)
+			case <-pingTicker.C:
+				go runPingChecks(config, statuses)
+			case <-targetPortTicker.C:
+				go runTargetPortChecks(config, statuses)
+				// 监听退出信号
+			case <-quitChan:
+				log.Println("接收到退出信号，正在保存数据并停止...")
+				// [重要] 退出前保存历史记录
+				saveAlertHistory()
+
+				// 停止 Ticker
+				portTicker.Stop()
+				processTicker.Stop()
+				resourceTicker.Stop()
+				pingTicker.Stop()
+				targetPortTicker.Stop()
+
+				log.Println("服务已安全停止")
+				os.Exit(0)
+			}
 		}
-	}
+	}()
+	// 阻塞主 Goroutine，防止程序直接退出
+	// 这里使用 select{} 或者等待 quitChan 都可以，
+	// 但因为上面的 select 在 goroutine 里，这里我们需要一个阻塞机制
+	select {}
 
 }
 
