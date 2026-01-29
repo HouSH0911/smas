@@ -1,0 +1,10 @@
+# Ignore go mod file
+bin/go.mod
+bin/go.sum
+
+# Ignore Go build artifacts
+bin/smas_*_x86
+bin/smas_*_arm
+
+# Ignore Readme files
+/README.md
