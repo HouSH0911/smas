@@ -1,8 +1,0 @@
-
-/bin/go.mod
-/bin/go.sum
-
-/bin/smas_*_x86
-/bin/smas_*_arm
-
-/README.md
