@@ -1,10 +1,8 @@
-# Ignore go mod file
-bin/go.mod
-bin/go.sum
 
-# Ignore Go build artifacts
-bin/smas_*_x86
-bin/smas_*_arm
+/bin/go.mod
+/bin/go.sum
 
-# Ignore Readme files
+/bin/smas_*_x86
+/bin/smas_*_arm
+
 /README.md
