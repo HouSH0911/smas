@@ -88,6 +88,7 @@ type Config struct {
 	EnableIcmpPing bool `json:"enableIcmpPing"` // 是否启用 ICMP Ping
 	EnableTcpPing  bool `json:"enableTcpPing"`  // 是否启用 TCP(22端口) Ping
 	IcmpTimeout    int  `json:"icmpTimeout"`    // ICMP 超时时间(秒)
+	SshPort        int  `json:"sshPort"`        // 用于 TCP Ping 的端口号
 }
 
 // 企业微信消息结构
@@ -679,6 +680,11 @@ func checkPingState(address string) bool {
 			}
 		}
 	}
+	// 确定使用的端口，如果配置为 0 则默认 22
+	targetSshPort := config.SshPort
+	if targetSshPort <= 0 {
+		targetSshPort = 22
+	}
 	// ---------- 确定检测策略 ----------
 	useICMP := config.EnableIcmpPing
 	useTCP := config.EnableTcpPing
@@ -725,7 +731,7 @@ func checkPingState(address string) bool {
 				time.Sleep(waitBetweenRetries)
 				// log.Printf("%s [TCP] 地址 %s 检测失败，第 %d 次重试...", time.Now().Format("2006-01-02 15:04:05"), address, retry)
 			}
-			if checkTCP22(address, config.PortTimeout) {
+			if checkTCP22(address, targetSshPort, config.PortTimeout) {
 				tcpOK = true
 				break
 			}
@@ -773,11 +779,11 @@ func checkICMP(address string, timeoutSeconds int) bool {
 }
 
 // [v2.5.0新增] 底层 TCP 22端口检测函数
-func checkTCP22(address string, timeoutSeconds int) bool {
+func checkTCP22(address string, port int, timeoutSeconds int) bool {
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = 5
 	}
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort(address, "22"), time.Duration(timeoutSeconds)*time.Second)
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(address, strconv.Itoa(port)), time.Duration(timeoutSeconds)*time.Second)
 	if err == nil {
 		conn.Close()
 		return true

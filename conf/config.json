@@ -42,9 +42,10 @@
   "processRestartWindow": 180,
   "serverRestartWindow": 600,
   "portRestartWindow": 320,
-  "enableIcmpPing": true,  
+  "enableIcmpPing": true,
   "enableTcpPing": true, 
   "icmpTimeout": 3,
+  "sshPort": 22,
   "monitor": {
     "process": true,
     "port": true,
