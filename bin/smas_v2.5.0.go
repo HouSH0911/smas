@@ -690,7 +690,7 @@ func checkPingState(address string) bool {
 	// ---------- 开始 Ping 检查 ----------
 	const maxPingRetries = 2
 	const waitBetweenPingRetries = 2 * time.Second
-	successPing := false
+	successPing := true
 
 	// ---------- 1. 执行 ICMP 检测 ----------
 	if useICMP {
@@ -702,7 +702,6 @@ func checkPingState(address string) bool {
 			}
 			if checkICMP(address, config.IcmpTimeout) {
 				icmpOK = true
-				successPing = true
 				break
 			}
 		}
@@ -717,7 +716,7 @@ func checkPingState(address string) bool {
 	// 但为了日志完整性，这里可以选择继续测 TCP。
 	const maxRetries = 2
 	const waitBetweenRetries = 1 * time.Second
-	successTcp := false
+	successTcp := true
 
 	if useTCP {
 		tcpOK := false
@@ -728,7 +727,6 @@ func checkPingState(address string) bool {
 			}
 			if checkTCP22(address, config.PortTimeout) {
 				tcpOK = true
-				successTcp = true
 				break
 			}
 		}
@@ -739,7 +737,7 @@ func checkPingState(address string) bool {
 	}
 
 	// ---------- 结果处理 ----------
-	if !successPing || !successTcp {
+	if (useICMP && !successPing) || (useTCP && !successTcp) {
 		now := time.Now()
 		if _, existed := pingFailures.Load(address); !existed {
 			log.Printf("[ monitorPing ] %s unreachable (Strategy: ICMP=%v, TCP=%v), entering cooldown for %v",
