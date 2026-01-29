@@ -170,6 +170,8 @@ type ServerStatus struct {
 type StateTracker struct {
 	FirstFailureTime time.Time // 首次检测到异常的时间 (IsZero代表正常)
 	AlertSent        bool      // 是否已经发送了"Down/Lost"确认告警
+	// [v2.5.0新增字段] 记录最后一次进程恢复的时间
+	LastProcessRecoveryTime time.Time
 }
 
 // StatusResponse 表示 /check 接口的响应

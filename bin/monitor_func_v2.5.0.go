@@ -760,6 +760,13 @@ func handlePortStatus(address, port, key string, portState bool, status *ServerS
 							shouldSuppressRecovery = true
 							break
 						}
+						// 进程虽然现在是好的，但它在"最近一段时间内"刚恢复过
+						// 这里的 300秒 建议设置得比您的 portCoolDown (120s) + 检测周期 要大
+						if time.Since(procTracker.LastProcessRecoveryTime) < 480*time.Second {
+							shouldSuppressRecovery = true
+							log.Printf("检测到关联进程 %s 在近期 (%v前) 有过重启，压制端口告警", procName, time.Since(procTracker.LastProcessRecoveryTime))
+							break
+						}
 					}
 				}
 				status.ProcessMutex.Unlock()
@@ -855,6 +862,8 @@ func handleProcessStatus(address, key string, processes []ProcessStatus, status 
 			// === 当前状态：进程运行中 (UP) ===
 
 			if !tracker.FirstFailureTime.IsZero() {
+				// [v2.5.0新增] 记录恢复时间
+				tracker.LastProcessRecoveryTime = time.Now()
 				// 之前有故障记录，现在恢复了 -> 需要判断是重启还是恢复
 				timeSinceDown := now.Sub(tracker.FirstFailureTime)
 
