@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/smtp"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"regexp"
@@ -83,6 +84,10 @@ type Config struct {
 	PortRestartWindow    int `json:"portRestartWindow"`    // 端口通信重启判断窗口(秒)
 	// *** v2.5.0新增字段 ***
 	PortProcessMappings []PortProcessMapping `json:"portProcessMappings"`
+	// *** [v2.5.0新增新增] Ping检测配置 ***
+	EnableIcmpPing bool `json:"enableIcmpPing"` // 是否启用 ICMP Ping
+	EnableTcpPing  bool `json:"enableTcpPing"`  // 是否启用 TCP(22端口) Ping
+	IcmpTimeout    int  `json:"icmpTimeout"`    // ICMP 超时时间(秒)
 }
 
 // 企业微信消息结构
@@ -674,35 +679,71 @@ func checkPingState(address string) bool {
 			}
 		}
 	}
+	// ---------- 确定检测策略 ----------
+	useICMP := config.EnableIcmpPing
+	useTCP := config.EnableTcpPing
+	// 兼容逻辑：如果两个都没配置（旧配置文件），默认使用原来的 TCP 检测
+	if !useICMP && !useTCP {
+		useTCP = true
+	}
 
 	// ---------- 开始 Ping 检查 ----------
+	const maxPingRetries = 2
+	const waitBetweenPingRetries = 2 * time.Second
+	successPing := false
+
+	// ---------- 1. 执行 ICMP 检测 ----------
+	if useICMP {
+		icmpOK := false
+		for retry := 0; retry <= maxPingRetries; retry++ {
+			if retry > 0 {
+				time.Sleep(waitBetweenPingRetries)
+				//log.Printf("%s [ICMP] 地址 %s 检测失败，第 %d 次重试...", time.Now().Format("2006-01-02 15:04:05"), address, retry)
+			}
+			if checkICMP(address, config.IcmpTimeout) {
+				icmpOK = true
+				successPing = true
+				break
+			}
+		}
+		if !icmpOK {
+			log.Printf("[ monitorPing ] %s ICMP ping failed", address)
+			successPing = false
+		}
+	}
+
+	// ---------- 2. 执行 TCP 检测 (仅当 ICMP 通过或未启用时才继续，否则直接失败) ----------
+	// 逻辑：如果 ICMP 已经失败，且要求"任一失败即失联"，则无需再测 TCP，结果已经是 false
+	// 但为了日志完整性，这里可以选择继续测 TCP。
 	const maxRetries = 2
 	const waitBetweenRetries = 1 * time.Second
+	successTcp := false
 
-	success := false
-	for retry := 0; retry <= maxRetries; retry++ {
-		if retry > 0 {
-			time.Sleep(waitBetweenRetries)
-			fmt.Printf("%s 地址 %s 检测失败，第 %d 次重试...\n", time.Now().Format("2006-01-02 15:04:05"), address, retry)
+	if useTCP {
+		tcpOK := false
+		for retry := 0; retry <= maxRetries; retry++ {
+			if retry > 0 {
+				time.Sleep(waitBetweenRetries)
+				// log.Printf("%s [TCP] 地址 %s 检测失败，第 %d 次重试...", time.Now().Format("2006-01-02 15:04:05"), address, retry)
+			}
+			if checkTCP22(address, config.PortTimeout) {
+				tcpOK = true
+				successTcp = true
+				break
+			}
 		}
-
-		// 调用系统 ping 命令
-		conn, err := net.DialTimeout("tcp", net.JoinHostPort(address, "22"), time.Duration(config.PortTimeout)*time.Second)
-		if err == nil {
-			conn.Close()
-			success = true
-			break
-		}
-		if err != nil {
-			continue // 超时或错误则继续重试
+		if !tcpOK {
+			log.Printf("[ monitorPing ] %s TCP ping (port 22) failed", address)
+			successTcp = false
 		}
 	}
 
 	// ---------- 结果处理 ----------
-	if !success {
+	if !successPing || !successTcp {
 		now := time.Now()
 		if _, existed := pingFailures.Load(address); !existed {
-			log.Printf("[ monitorPing ] %s unreachable, entering cooldown for %v", address, time.Duration(config.PingCoolDown)*time.Second)
+			log.Printf("[ monitorPing ] %s unreachable (Strategy: ICMP=%v, TCP=%v), entering cooldown for %v",
+				address, useICMP, useTCP, time.Duration(config.PingCoolDown)*time.Second)
 		}
 		pingFailures.Store(address, now)
 		return false
@@ -715,6 +756,35 @@ func checkPingState(address string) bool {
 	}
 
 	return true
+}
+
+// [v2.5.0新增] 底层 ICMP 检测函数 (调用系统 ping)
+func checkICMP(address string, timeoutSeconds int) bool {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 3 // 默认超时3秒
+	}
+	// Linux 下 ping 使用 -c 次数, -W 超时(秒)
+	cmd := exec.Command("ping", "-c", "2", "-W", strconv.Itoa(timeoutSeconds), address)
+
+	// 禁用标准输出，避免日志杂乱
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+
+	err := cmd.Run()
+	return err == nil
+}
+
+// [v2.5.0新增] 底层 TCP 22端口检测函数
+func checkTCP22(address string, timeoutSeconds int) bool {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 5
+	}
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(address, "22"), time.Duration(timeoutSeconds)*time.Second)
+	if err == nil {
+		conn.Close()
+		return true
+	}
+	return false
 }
 
 // 辅助函数：检查挂载点是否在排除列表中
