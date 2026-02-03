@@ -26,12 +26,16 @@
     "reportType": "weekly",   
     "title": "📅 IDC服务器每周运行监控汇总" 
   },
+  "streamReport": {
+    "enabled": true,
+    "reportTime": "09:00"
+  },
   "emailRateLimit": 30, 
   "enableEmail": true,
   "resourceEma": 0.6,
   "consecutiveToAlert":2,
   "consecutiveToRecover":2,
-  "httpTimeout":3,
+  "httpTimeout":4,
   "failureCooldown":180,
   "pingCoolDown":180,
   "portCoolDown":120,

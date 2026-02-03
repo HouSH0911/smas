@@ -84,11 +84,16 @@ type Config struct {
 	PortRestartWindow    int `json:"portRestartWindow"`    // 端口通信重启判断窗口(秒)
 	// *** v2.5.0新增字段 ***
 	PortProcessMappings []PortProcessMapping `json:"portProcessMappings"`
-	// *** [v2.5.0新增新增] Ping检测配置 ***
+	// *** [v2.5.0新增] Ping检测配置 ***
 	EnableIcmpPing bool `json:"enableIcmpPing"` // 是否启用 ICMP Ping
 	EnableTcpPing  bool `json:"enableTcpPing"`  // 是否启用 TCP(22端口) Ping
 	IcmpTimeout    int  `json:"icmpTimeout"`    // ICMP 超时时间(秒)
 	SshPort        int  `json:"sshPort"`        // 用于 TCP Ping 的端口号
+	// *** [v2.5.0新增] 话单流统计报告配置 ***
+	StreamReport struct {
+		Enabled    bool   `json:"enabled"`
+		ReportTime string `json:"reportTime"` // 例如 "09:00"
+	} `json:"streamReport"`
 }
 
 // 企业微信消息结构
@@ -136,6 +141,14 @@ type PortProcessMapping struct {
 	Name      string   `json:"name"`      // 映射组名称，方便日志打印
 	Ports     []string `json:"ports"`     // 该组包含的端口
 	Processes []string `json:"processes"` // 该组包含的进程
+}
+
+// 定义单条流统计数据的结构
+type StreamStat struct {
+	StreamName string `json:"streamName"`
+	TotalFiles int64  `json:"totalFiles"`
+	TotalSize  int64  `json:"totalSize"`
+	StatDate   string `json:"statDate"`
 }
 
 // 服务器告警发送状态的结构体
@@ -186,6 +199,7 @@ type StatusResponse struct {
 	ProcessStatuses   []ProcessStatus   `json:"processStatuses"`
 	Metrics           Metrics           `json:"metrics"`
 	PortStatuses      []PortStatus      `json:"portStatuses"`
+	StreamStats       []StreamStat      `json:"streamStats"`
 }
 
 // 进程状态的结构体
@@ -319,7 +333,7 @@ var (
 )
 
 const (
-	maxWorkers        = 300 // 最大工作协程数
+	maxWorkers        = 500 // 最大工作协程数
 	checkCacheTTL     = 10  // 检查结果缓存时间(秒)
 	resourceCheckFreq = 180 // 资源监控频率(秒)
 	portCheckFreq     = 10  // 端口监控频率(秒)
@@ -695,7 +709,7 @@ func checkPingState(address string) bool {
 
 	// ---------- 开始 Ping 检查 ----------
 	const maxPingRetries = 2
-	const waitBetweenPingRetries = 2 * time.Second
+	const waitBetweenPingRetries = 1 * time.Second
 	successPing := true
 
 	// ---------- 1. 执行 ICMP 检测 ----------
@@ -838,4 +852,20 @@ func sendAlert(alertLevel string, data EmailTemplateData) {
 		log.Printf("告警通知被禁用，仅记录日志: %s - %s", data.Subject, data.Message)
 	}
 
+}
+
+// parseReportTime 解析 "HH:MM" 格式的时间字符串为今天的 time.Time
+func parseReportTime(timeStr string) time.Time {
+	layout := "15:04"
+	// 尝试解析
+	parsed, err := time.Parse(layout, timeStr)
+	if err != nil {
+		log.Printf("解析报告时间格式错误 (%s): %v, 将使用默认时间 08:00", timeStr, err)
+		// 解析失败则默认 08:00
+		parsed, _ = time.Parse(layout, "08:00")
+	}
+
+	// time.Parse 默认返回的是公元0年的时间，我们需要结合今天的日期
+	now := time.Now()
+	return time.Date(now.Year(), now.Month(), now.Day(), parsed.Hour(), parsed.Minute(), 0, 0, now.Location())
 }
