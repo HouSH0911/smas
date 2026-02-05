@@ -52,9 +52,19 @@ func reloadConfig() error {
 
 	// 更新全局配置
 	config = newConfig
-	log.Printf("配置已重新加载 - 邮件发送: %v, 邮件接收：%v, 进程监控开关: %v, 端口监控开关: %v,Ping通信监控开关: %v,资源监控开关: %v,目录文件监控开关: %v,目标服务器端口监控开关: %v,资源告警平滑指数：%v,邮件发送间隔：%v,故障冷却时间：%v",
-		config.Email.From, config.Email.Recipients, config.Monitor.ProcessMonitor, config.Monitor.PortMonitor, config.Monitor.ServerReachMonitor,
-		config.Monitor.Resource, config.Monitor.DirFileMonitor, config.Monitor.RaPortMonitor, config.ResourceSmooth, config.EmailRateLimit, config.FailureCooldown)
+	log.Printf("配置已重新加载 -----------\n 邮件告警开关: %v \n 企业微信告警开关：%v \n"+
+		"邮件相关部分：---------------------------------\n 邮件发送: %v \n邮件接收：%v \n 邮件发送间隔：%vs \n"+
+		"相关检测开关：---------------------------------\n 进程监控开关: %v \n 端口监控开关: %v \n 服务器通信监控开关: %v \n 资源监控开关: %v \n 目录文件监控开关: %v \n 目标服务器端口监控开关: %v \n 资源告警平滑指数：%v \n 故障冷却时间：%vs \n"+
+		"企业微信设置：---------------------------------\n 企业微信告警发送开关: %v \n 机器人接口地址: %v \n 企业微信服务代理开关: %v \n 企业微信服务代理地址: %v \n"+
+		"汇报相关部分：---------------------------------\n 汇总报告开关： %v \n 汇总报告发送频率：%v \n 汇总报告发送时间：%v \n"+
+		"话单监控部分：---------------------------------\n 话单监控开关: %v \n 话单报告发送时间: %v \n",
+		config.AlertMethods.Email, config.AlertMethods.WechatWork,
+		config.Email.From, config.Email.Recipients, config.EmailRateLimit,
+		config.Monitor.ProcessMonitor, config.Monitor.PortMonitor, config.Monitor.ServerReachMonitor, config.Monitor.Resource, config.Monitor.DirFileMonitor, config.Monitor.RaPortMonitor, config.ResourceSmooth, config.FailureCooldown,
+		config.WechatWork.Enabled, config.WechatWork.WebhookUrl, config.WechatWork.ProxyEnabled, config.WechatWork.ProxyUrl,
+		config.SummaryReport.Enabled, config.SummaryReport.ReportType, config.SummaryReport.ReportTime,
+		config.StreamReport.Enabled, config.StreamReport.ReportTime,
+	)
 	return nil
 }
 

@@ -718,7 +718,7 @@ func sendAlert(alertLevel string, data EmailTemplateData) {
 	// 根据告警级别选择发送渠道
 
 	// 判断发送邮件
-	if config.AlertMethods.Email && config.EnableEmail {
+	if config.AlertMethods.Email {
 		if emailQueue != nil {
 			emailQueue.AddTask(config.Email, alertLevel, data)
 		} else {
@@ -727,7 +727,7 @@ func sendAlert(alertLevel string, data EmailTemplateData) {
 	}
 
 	// 判断发送企业微信
-	if config.AlertMethods.WechatWork && config.WechatWork.Enabled {
+	if config.AlertMethods.WechatWork {
 		sendWechatWorkAlert(config.WechatWork, alertLevel, data)
 	} else {
 		// 如果企业微信也禁用，则记录日志

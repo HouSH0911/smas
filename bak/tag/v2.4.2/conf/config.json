@@ -24,7 +24,7 @@
     "enabled": true,          
     "reportTime": "08:00",    
     "reportType": "weekly",   
-    "title": "📅 服务器每周运行监控汇总" 
+    "title": "📅 IDC服务器每周运行监控汇总" 
   },
   "emailRateLimit": 30, 
   "enableEmail": true,
@@ -68,7 +68,7 @@
       "resourceCheck": false,
       "portCheck": false,
       "directoryCheck": false,
-      "pingCheck": false,
+      "pingCheck": true,
       "targetPortCheck": false
     },
     {
