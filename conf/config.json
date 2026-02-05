@@ -8,6 +8,14 @@
       "houshenghai@haohandata.com.cn"
     ]
   },
+  "monitor": {
+    "process": true,
+    "port": true,
+    "ping": true,
+    "resource": true,
+    "dir": true,
+    "raport": false
+  },
   "wechatWork": {
     "enabled": true,
     "webhookUrl": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=cc9c86c9-8dbe-4c39-8970-f71cdbec319d",
@@ -28,7 +36,8 @@
   },
   "streamReport": {
     "enabled": true,
-    "reportTime": "09:00"
+    "reportTime": "09:00",
+    "targetStreams": ["XDR_SJJS"]
   },
   "emailRateLimit": 30, 
   "enableEmail": true,
@@ -50,14 +59,6 @@
   "enableTcpPing": true, 
   "icmpTimeout": 3,
   "sshPort": 22,
-  "monitor": {
-    "process": true,
-    "port": true,
-    "ping": true,
-    "resource": true,
-    "dir": true,
-    "raport": false
-  },
   "portProcessMappings": [
     {
       "name": "UATG程序服务", 
@@ -81,8 +82,9 @@
     }
   ],
   "servers": [
-     {
+    {
       "addresses": ["10.47.144.145-150"],
+      "datacenter": "南数IDC机房",
       "port": ["2323", "6060"],
       "cpuThreshold": 90.0,
       "memoryThreshold": 99.88,
@@ -90,6 +92,7 @@
     },
     {
       "addresses": ["10.47.144.151-156"],
+      "datacenter": "泉州IDC机房",
       "port": ["2323", "6060"],
       "cpuThreshold": 90.0,
       "memoryThreshold": 99.88,
@@ -103,7 +106,9 @@
     },
     {
       "addresses": ["10.47.144.160", "10.47.144.161"],
+      "datacenter": "上街IDC机房",
       "port": ["6060"],
+      "serverType": "XDR",
       "cpuThreshold": 90.0,
       "memoryThreshold": 99.88,
       "diskThreshold": 70.0,

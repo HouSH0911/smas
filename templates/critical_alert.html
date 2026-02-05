@@ -56,6 +56,7 @@
             <div class="alert-title">🚨🚨🚨{{.Subject}}</div>
             <div class="alert-detail">
                 <p><strong>服务器地址:</strong> {{.Server}}</p>
+                <p><strong>机房:</strong> {{.Datacenter}}</p>
                 <p><strong>告警详情:</strong> {{.Message}}</p>
                 {{if .Value}}<p><strong>当前值:</strong> {{.Value}}</p>{{end}}
                 {{if .Threshold}}<p><strong>阈值:</strong> {{.Threshold}}</p>{{end}}

@@ -1,0 +1,115 @@
+{
+  "email": {
+    "from": "pnetAlertMail@163.com",
+    "password": "HMijrvU3zBShJQ39",
+    "smtpHost": "10.53.192.57",
+    "smtpPort": "465",
+    "recipients": [
+      "houshenghai@haohandata.com.cn"
+    ]
+  },
+  "monitor": {
+    "process": true,
+    "port": true,
+    "ping": true,
+    "resource": true,
+    "dir": true,
+    "raport": false
+  },
+  "wechatWork": {
+    "enabled": true,
+    "webhookUrl": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=cc9c86c9-8dbe-4c39-8970-f71cdbec319d",
+    "proxyEnabled": true,  
+    "proxyUrl": "http://10.53.192.57:9301",
+    "mentionedList": [],
+    "mentionedMobileList": []
+  },
+  "alertMethods": {
+    "email": true,
+    "wechatWork": true
+  },
+  "summaryReport": {
+    "enabled": true,          
+    "reportTime": "08:00",    
+    "reportType": "weekly",   
+    "title": "📅 IDC服务器每周运行监控汇总" 
+  },
+  "streamReport": {
+    "enabled": true,
+    "reportTime": "09:00",
+    "targetStreams": ["XDR_SJJS"]
+  },
+  "emailRateLimit": 30, 
+  "enableEmail": true,
+  "resourceEma": 0.6,
+  "consecutiveToAlert":2,
+  "consecutiveToRecover":2,
+  "httpTimeout":4,
+  "failureCooldown":180,
+  "pingCoolDown":180,
+  "portCoolDown":120,
+  "portTimeout":5,
+  "tcpAndUdpResultAddTime":15,
+  "tcpPortDetectTimeout":4000,
+  "udpPortDetectTimeout":800,
+  "processRestartWindow": 180,
+  "serverRestartWindow": 600,
+  "portRestartWindow": 320,
+  "enableIcmpPing": true,
+  "enableTcpPing": true, 
+  "icmpTimeout": 3,
+  "sshPort": 22,
+  "portProcessMappings": [
+    {
+      "name": "UATG程序服务", 
+      "ports": ["2323", "6060"],
+      "processes": ["uatg", "nurse.sh"]
+    },
+    {
+      "name": "HDF服务",
+      "ports": ["6011", "2000"],
+      "processes": ["/hdf/bin/hdf"]
+    },
+    {
+      "name": "DSU服务",
+      "ports": ["23000"],
+      "processes": ["dsu", "pmon"]
+    },
+    {
+      "name": "流量采集TCS服务",
+      "ports": ["2323", "6060"],
+      "processes": ["tcs", "nurse.sh"]
+    }
+  ],
+  "servers": [
+     {
+      "addresses": ["10.47.144.145-150"],
+      "port": ["2323", "6060"],
+      "cpuThreshold": 90.0,
+      "memoryThreshold": 99.88,
+      "diskThreshold": 70.0
+    },
+    {
+      "addresses": ["10.47.144.151-156"],
+      "port": ["2323", "6060"],
+      "cpuThreshold": 90.0,
+      "memoryThreshold": 99.88,
+      "diskThreshold": 70.0,
+      "processCheck": false,
+      "resourceCheck": false,
+      "portCheck": false,
+      "directoryCheck": false,
+      "pingCheck": true,
+      "targetPortCheck": false
+    },
+    {
+      "addresses": ["10.47.144.160", "10.47.144.161"],
+      "port": ["6060"],
+      "serverType": "XDR",
+      "cpuThreshold": 90.0,
+      "memoryThreshold": 99.88,
+      "diskThreshold": 70.0,
+      "excludeMountPoints": [ "/media" ]
+    }
+  ]
+}
