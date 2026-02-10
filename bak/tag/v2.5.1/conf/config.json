@@ -19,20 +19,14 @@
   "wechatWork": {
     "enabled": true,
     "webhookUrl": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=cc9c86c9-8dbe-4c39-8970-f71cdbec319d",
-    "proxyEnabled": true,
+    "proxyEnabled": true,  
     "proxyUrl": "http://10.53.192.57:9301",
     "mentionedList": [],
     "mentionedMobileList": []
   },
-  "pushPlus": {
-    "enabled": false,
-    "token": "64547edeb2e84d959b1ca6837b10d92e",
-    "topic": "smas_alert"
-  },
   "alertMethods": {
     "email": true,
-    "wechatWork": true,
-    "pushPlus": false
+    "wechatWork": true
   },
   "summaryReport": {
     "enabled": true,          
@@ -43,7 +37,6 @@
   "streamReport": {
     "enabled": true,
     "reportTime": "09:00",
-    "reportDate": "yesterday",
     "targetStreams": ["XDR_SJJS"]
   },
   "emailRateLimit": 30, 
