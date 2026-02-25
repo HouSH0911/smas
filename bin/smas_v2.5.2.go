@@ -61,10 +61,11 @@ type Config struct {
 	AlertMethods AlertMethodsConfig `json:"alertMethods"`
 	// 新增字段
 	SummaryReport struct {
-		Enabled    bool   `json:"enabled"`
-		ReportTime string `json:"reportTime"` // 例如 "08:00"
-		ReportType string `json:"reportType"` // "daily" or "weekly"
-		Title      string `json:"title"`
+		Enabled     bool   `json:"enabled"`
+		ReportTime  string `json:"reportTime"` // 例如 "08:00"
+		ReportType  string `json:"reportType"` // "daily" or "weekly"
+		Title       string `json:"title"`
+		SendNoAlert bool   `json:"sendNoAlert"` // 无告警时是否发送报告
 	} `json:"summaryReport"`
 	Servers                []Server      `json:"servers"`
 	Monitor                MonitorConfig `json:"monitor"`                // 全局监控配置
@@ -92,6 +93,8 @@ type Config struct {
 	EnableTcpPing  bool `json:"enableTcpPing"`  // 是否启用 TCP(22端口) Ping
 	IcmpTimeout    int  `json:"icmpTimeout"`    // ICMP 超时时间(秒)
 	SshPort        int  `json:"sshPort"`        // 用于 TCP Ping 的端口号
+	// *** [v2.5.0新增] Agent 服务端口 ***
+	AgentPort int `json:"agentPort"` // Agent 服务端口
 	// *** [v2.5.0新增] 话单流统计报告配置 ***
 	StreamReport struct {
 		Enabled       bool     `json:"enabled"`

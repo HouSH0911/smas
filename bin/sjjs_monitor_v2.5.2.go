@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -52,6 +53,7 @@ func runStreamStatsCollection() {
 		Stats        []StreamStat
 		Error        error
 		NoStreamData bool // 标记返回成功但 streamStats 为 null 或空
+		AllZeroData  bool // 标记目标日期所有数据都为0（文件不存在或为空）
 	}
 
 	// 1. 筛选 XDR 服务器
@@ -67,7 +69,14 @@ func runStreamStatsCollection() {
 		return
 	}
 
-	// 2. 并发采集
+	// 2. 计算目标日期（在并发之前）
+	now := time.Now()
+	targetDate := now.Format("20060102")
+	if config.StreamReport.ReportDate == "yesterday" {
+		targetDate = now.AddDate(0, 0, -1).Format("20060102")
+	}
+
+	// 3. 并发采集
 	var wg sync.WaitGroup
 	resultChan := make(chan ServerStreamResult, len(targetAddresses))
 
@@ -89,6 +98,20 @@ func runStreamStatsCollection() {
 				resultChan <- ServerStreamResult{Address: ip, NoStreamData: true}
 				return
 			}
+
+			// 检查目标日期的数据是否都为 0
+			allZero := true
+			for _, stat := range resp.StreamStats {
+				if stat.StatDate == targetDate && (stat.TotalFiles > 0 || stat.TotalSize > 0) {
+					allZero = false
+					break
+				}
+			}
+			if allZero {
+				resultChan <- ServerStreamResult{Address: ip, Stats: resp.StreamStats, AllZeroData: true}
+				return
+			}
+
 			resultChan <- ServerStreamResult{Address: ip, Stats: resp.StreamStats}
 		}(addr)
 	}
@@ -99,13 +122,7 @@ func runStreamStatsCollection() {
 	successCount := 0
 	var missingServers []string
 	var noDataServers []string
-
-	// 计算目标日期
-	now := time.Now()
-	targetDate := now.Format("20060102")
-	if config.StreamReport.ReportDate == "yesterday" {
-		targetDate = now.AddDate(0, 0, -1).Format("20060102")
-	}
+	var zeroDataServers []string // 数据全为0的服务器列表
 
 	log.Printf("📅 目标统计日期: %s (配置: %s)", targetDate, config.StreamReport.ReportDate)
 
@@ -129,6 +146,10 @@ func runStreamStatsCollection() {
 			noDataServers = append(noDataServers, res.Address)
 			continue
 		}
+		if res.AllZeroData {
+			zeroDataServers = append(zeroDataServers, res.Address)
+			continue
+		}
 		successCount++
 
 		for _, stat := range res.Stats {
@@ -144,12 +165,12 @@ func runStreamStatsCollection() {
 	}
 
 	// 4. 发送报告
-	sendStreamReport(aggregatedMap, successCount, len(targetAddresses), missingServers, noDataServers)
+	sendStreamReport(aggregatedMap, successCount, len(targetAddresses), missingServers, noDataServers, zeroDataServers)
 }
 
 // --- 发送逻辑 (参考 report_summary) ---
 
-func sendStreamReport(aggMap map[string]*AggregatedStream, successCount, totalServers int, missingServers, noDataServers []string) {
+func sendStreamReport(aggMap map[string]*AggregatedStream, successCount, totalServers int, missingServers, noDataServers, zeroDataServers []string) {
 	var sortedStats []*AggregatedStream
 	for _, v := range aggMap {
 		sortedStats = append(sortedStats, v)
@@ -178,7 +199,7 @@ func sendStreamReport(aggMap map[string]*AggregatedStream, successCount, totalSe
 		mdBuilder := strings.Builder{}
 
 		mdBuilder.WriteString(fmt.Sprintf("**统计时间**: %s\n", currentTime))
-		mdBuilder.WriteString(fmt.Sprintf("**监控节点**: 共 %d 台 (正常：%d 台，未采集：%d 台)\n", totalServers, successCount, len(missingServers)+len(noDataServers)))
+		mdBuilder.WriteString(fmt.Sprintf("**监控节点**: 共 %d 台 (正常：%d 台，未采集：%d 台)\n", totalServers, successCount, len(missingServers)+len(noDataServers)+len(zeroDataServers)))
 		mdBuilder.WriteString("--------------------------------\n")
 
 		for _, stat := range sortedStats {
@@ -193,6 +214,13 @@ func sendStreamReport(aggMap map[string]*AggregatedStream, successCount, totalSe
 			}
 		}
 
+		if len(zeroDataServers) > 0 {
+			mdBuilder.WriteString("\n📊 **数据统计为0的节点**（文件可能不存在）:\n")
+			for _, s := range zeroDataServers {
+				mdBuilder.WriteString(fmt.Sprintf("• <font color=\"warning\">%s</font>\n", s))
+			}
+		}
+
 		if len(missingServers) > 0 {
 			mdBuilder.WriteString("\n❌ **采集失败的节点**:\n")
 			for _, s := range missingServers {
@@ -200,7 +228,7 @@ func sendStreamReport(aggMap map[string]*AggregatedStream, successCount, totalSe
 			}
 		}
 
-		if len(missingServers) == 0 && len(noDataServers) == 0 {
+		if len(missingServers) == 0 && len(noDataServers) == 0 && len(zeroDataServers) == 0 {
 			mdBuilder.WriteString("\n✅ <font color=\"info\">所有节点正常上报</font>")
 		}
 
@@ -225,7 +253,7 @@ func sendStreamReport(aggMap map[string]*AggregatedStream, successCount, totalSe
 		html.WriteString("<html><body>")
 		html.WriteString(fmt.Sprintf("<h3>%s</h3>", reportTitle))
 		html.WriteString(fmt.Sprintf("<p><strong>统计时间:</strong> %s<br>", currentTime))
-		html.WriteString(fmt.Sprintf("<strong>监控节点:</strong> 共 %d 台 (成功 %d, 失败 %d)</p>", totalServers, successCount, len(missingServers)+len(noDataServers)))
+		html.WriteString(fmt.Sprintf("<strong>监控节点:</strong> 共 %d 台 (成功 %d, 失败 %d)</p>", totalServers, successCount, len(missingServers)+len(noDataServers)+len(zeroDataServers)))
 
 		html.WriteString(fmt.Sprintf("<table style='%s'>", tableStyle))
 		html.WriteString(fmt.Sprintf("<thead><tr><th style='%s'>数据流</th><th style='%s'>日期</th><th style='%s'>总文件数</th><th style='%s'>总大小</th></tr></thead><tbody>", thStyle, thStyle, thStyle, thStyle))
@@ -250,6 +278,15 @@ func sendStreamReport(aggMap map[string]*AggregatedStream, successCount, totalSe
 			html.WriteString("</div>")
 		}
 
+		if len(zeroDataServers) > 0 {
+			html.WriteString("<br><div style='background-color: #e6f7ff; border:1px solid #91d5ff; padding:10px;'>")
+			html.WriteString("<strong>📊 以下节点数据统计为0 (文件可能不存在):</strong><br>")
+			for _, s := range zeroDataServers {
+				html.WriteString(fmt.Sprintf("%s<br>", s))
+			}
+			html.WriteString("</div>")
+		}
+
 		if len(missingServers) > 0 {
 			html.WriteString("<br><div style='background-color: #fff3f3; border:1px solid #ffccc7; padding:10px;'>")
 			html.WriteString("<strong>❌ 以下节点采集失败:</strong><br>")
@@ -259,12 +296,78 @@ func sendStreamReport(aggMap map[string]*AggregatedStream, successCount, totalSe
 			html.WriteString("</div>")
 		}
 
-		if len(missingServers) == 0 && len(noDataServers) == 0 {
+		if len(missingServers) == 0 && len(noDataServers) == 0 && len(zeroDataServers) == 0 {
 			html.WriteString("<br><p style='color:green'>✅ 所有节点均正常。</p>")
 		}
 		html.WriteString("</body></html>")
 
 		go sendRawHtmlEmail(config.Email, reportTitle, html.String())
+	}
+
+	// ===========================
+	// 3. 保存到本地文件
+	// ===========================
+	// 创建 data 目录（在项目根目录下，如果不存在）
+	dataDir := "../data"
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		log.Printf("❌ 创建 data 目录失败: %v", err)
+	} else {
+		// 构建文件内容
+		var fileContent strings.Builder
+		fileContent.WriteString("============================================\n")
+		fileContent.WriteString(fmt.Sprintf("%s\n", reportTitle))
+		fileContent.WriteString("============================================\n")
+		fileContent.WriteString(fmt.Sprintf("统计时间: %s\n", currentTime))
+		fileContent.WriteString(fmt.Sprintf("监控节点: 共 %d 台 (成功 %d, 失败 %d)\n", totalServers, successCount, len(missingServers)+len(noDataServers)+len(zeroDataServers)))
+		fileContent.WriteString("\n")
+
+		// 数据流统计
+		fileContent.WriteString("【数据流统计】\n")
+		fileContent.WriteString("----------------------------------------\n")
+		for _, stat := range sortedStats {
+			humanSize := formatBytes(stat.TotalSize)
+			fileContent.WriteString(fmt.Sprintf("%-20s: %6d 个 / %s\n", stat.StreamName, stat.TotalFiles, humanSize))
+		}
+		fileContent.WriteString("\n")
+
+		// 异常节点
+		if len(noDataServers) > 0 {
+			fileContent.WriteString("【未统计到数据的节点】\n")
+			for _, s := range noDataServers {
+				fileContent.WriteString(fmt.Sprintf("  - %s\n", s))
+			}
+			fileContent.WriteString("\n")
+		}
+
+		if len(zeroDataServers) > 0 {
+			fileContent.WriteString("【数据统计为0的节点】（文件可能不存在）\n")
+			for _, s := range zeroDataServers {
+				fileContent.WriteString(fmt.Sprintf("  - %s\n", s))
+			}
+			fileContent.WriteString("\n")
+		}
+
+		if len(missingServers) > 0 {
+			fileContent.WriteString("【采集失败的节点】\n")
+			for _, s := range missingServers {
+				fileContent.WriteString(fmt.Sprintf("  - %s\n", s))
+			}
+			fileContent.WriteString("\n")
+		}
+
+		if len(missingServers) == 0 && len(noDataServers) == 0 && len(zeroDataServers) == 0 {
+			fileContent.WriteString("✅ 所有节点均正常上报\n")
+		}
+
+		// 生成文件名：stream_report_YYYY-MM-DD.txt
+		fileName := fmt.Sprintf("%s/stream_report_%s.txt", dataDir, reportDate)
+
+		// 写入文件
+		if err := os.WriteFile(fileName, []byte(fileContent.String()), 0644); err != nil {
+			log.Printf("❌ 保存报告到文件失败: %v", err)
+		} else {
+			log.Printf("✅ 报告已保存到: %s", fileName)
+		}
 	}
 }
 
@@ -274,10 +377,27 @@ func formatBytes(b int64) string {
 	if b < unit {
 		return fmt.Sprintf("%d B", b)
 	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
+
+	// 计算 TB 值
+	tbValue := float64(b) / (unit * unit * unit * unit)
+	// 计算 GB 值
+	gbValue := float64(b) / (unit * unit * unit)
+	// 计算 MB 值
+	mbValue := float64(b) / (unit * unit)
+
+	// 根据大小选择合适的显示格式，同时显示 TB 和 GB
+	if tbValue >= 1.0 {
+		// 大于等于 1TB，显示 TB 和 GB
+		return fmt.Sprintf("%.2f TB (%.2f GB)", tbValue, gbValue)
+	} else if mbValue >= 1024 {
+		// 大于等于 1GB 但小于 1TB，显示 GB 和 MB
+		return fmt.Sprintf("%.2f GB (%.2f MB)", gbValue, mbValue)
+	} else if mbValue >= 1 {
+		// 大于等于 1MB 但小于 1GB，显示 MB
+		return fmt.Sprintf("%.2f MB", mbValue)
+	} else {
+		// 小于 1MB，显示 KB
+		kbValue := float64(b) / unit
+		return fmt.Sprintf("%.2f KB", kbValue)
 	}
-	return fmt.Sprintf("%.2f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }

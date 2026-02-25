@@ -37,7 +37,8 @@
   "summaryReport": {
     "enabled": true,          
     "reportTime": "08:00",    
-    "reportType": "weekly",   
+    "reportType": "weekly",  
+    "sendNoAlert": true,
     "title": "📅 IDC服务器每周运行监控汇总" 
   },
   "streamReport": {
@@ -66,6 +67,7 @@
   "enableTcpPing": true, 
   "icmpTimeout": 3,
   "sshPort": 22,
+  "agentPort": 9600,
   "portProcessMappings": [
     {
       "name": "UATG程序服务", 

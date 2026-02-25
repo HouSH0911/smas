@@ -1,6 +1,6 @@
 #!/bin/sh
 PRO_PATH="/home/haohan/smas/bin"
-PROGRAM="smas_v2.4.2_x86"
+PROGRAM="smas_v2.5.2_x86"
 WATCH_PROGRAM='smas_start.sh'
 COUNT=0
 

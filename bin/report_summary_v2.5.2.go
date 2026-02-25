@@ -16,12 +16,22 @@ import (
 )
 
 const historyFileName = "alert_history.json"
+const dataDir = "../data"
+
+// 获取历史文件路径（在 data 目录下）
+func getHistoryPath() string {
+	return filepath.Join(dataDir, historyFileName)
+}
 
 // 保存告警历史到文件
 func saveAlertHistory() {
-	// 获取项目根目录
-	// 这里为了简单，建议直接保存到 log 目录或者 config 目录，这里假设和 config.json 同级
-	historyPath := filepath.Join(filepath.Dir(configPath), historyFileName)
+	// 确保 data 目录存在
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		log.Printf("创建 data 目录失败: %v", err)
+		return
+	}
+
+	historyPath := getHistoryPath()
 
 	data, err := json.MarshalIndent(alertHistory, "", "  ")
 	if err != nil {
@@ -35,9 +45,51 @@ func saveAlertHistory() {
 	}
 }
 
+// backupAlertHistoryFile 备份当前的历史文件
+func backupAlertHistoryFile() {
+	historyPath := getHistoryPath()
+
+	// 检查文件是否存在
+	if _, err := os.Stat(historyPath); os.IsNotExist(err) {
+		// 文件不存在，无需备份
+		return
+	}
+
+	// 生成备份文件名: alert_history_YYYYMMDD_[daily/weekly].json
+	now := time.Now()
+	dateStr := now.Format("20060102")
+	reportType := config.SummaryReport.ReportType
+	if reportType == "" {
+		reportType = "daily"
+	}
+	backupFileName := fmt.Sprintf("alert_history_%s_%s.json", dateStr, reportType)
+	backupPath := filepath.Join(dataDir, backupFileName)
+
+	// 读取原文件内容
+	data, err := os.ReadFile(historyPath)
+	if err != nil {
+		log.Printf("读取历史文件用于备份失败: %v", err)
+		return
+	}
+
+	// 写入备份文件
+	if err := os.WriteFile(backupPath, data, 0644); err != nil {
+		log.Printf("备份历史文件失败: %v", err)
+		return
+	}
+
+	log.Printf("✅ 历史告警文件已备份到: %s", backupPath)
+}
+
 // 从文件加载告警历史
 func LoadAlertHistory() { // 首字母大写供 main 调用
-	historyPath := filepath.Join(filepath.Dir(configPath), historyFileName)
+	// 确保 data 目录存在
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		log.Printf("创建 data 目录失败: %v", err)
+		return
+	}
+
+	historyPath := getHistoryPath()
 
 	// 如果文件不存在，直接返回
 	if _, err := os.Stat(historyPath); os.IsNotExist(err) {
@@ -387,6 +439,32 @@ func buildEmailWithStats(title, nowStr string, records []AlertRecord, stats Summ
 	return htmlContent.String()
 }
 
+// buildEmailNoAlert 构建无告警时的邮件内容
+func buildEmailNoAlert(title, nowStr, periodDesc string) string {
+	var htmlContent strings.Builder
+
+	htmlContent.WriteString(fmt.Sprintf("<h2>%s</h2>", title))
+	htmlContent.WriteString(fmt.Sprintf("<p style='color:gray; font-size:12px;'>统计时间: %s | 监控周期: %s</p>", nowStr, periodDesc))
+
+	htmlContent.WriteString("<div style='padding: 20px; margin: 20px 0; background-color: #f6ffed; border: 1px solid #b7eb8f; border-radius: 4px;'>")
+	htmlContent.WriteString("<h3 style='color: #52c41a; margin: 0;'>🎉 过去周期内无告警</h3>")
+	htmlContent.WriteString("<p style='color: #389e0d; margin: 10px 0 0 0;'>所有监控项正常运行，感谢您的关注！</p>")
+	htmlContent.WriteString("</div>")
+
+	htmlContent.WriteString("<h3>监控项目状态</h3>")
+	htmlContent.WriteString("<table border='1' cellspacing='0' cellpadding='8' style='border-collapse: collapse; width: 100%; background-color: #f9f9f9;'>")
+	htmlContent.WriteString("<tr style='background-color: #f0f0f0;'><th>监控类型</th><th>状态</th></tr>")
+	htmlContent.WriteString("<tr><td>服务器存活</td><td style='color: #52c41a; font-weight: bold;'>正常</td></tr>")
+	htmlContent.WriteString("<tr><td>端口监控</td><td style='color: #52c41a; font-weight: bold;'>正常</td></tr>")
+	htmlContent.WriteString("<tr><td>进程监控</td><td style='color: #52c41a; font-weight: bold;'>正常</td></tr>")
+	htmlContent.WriteString("<tr><td>资源监控</td><td style='color: #52c41a; font-weight: bold;'>正常</td></tr>")
+	htmlContent.WriteString("</table>")
+
+	htmlContent.WriteString("<p style='font-size:12px; color:gray;'>本邮件由监控系统自动生成，请勿回复。</p>")
+
+	return htmlContent.String()
+}
+
 // buildWechatSummaryWithStats 构建带统计的企业微信消息
 func buildWechatSummaryWithStats(title, nowStr string, records []AlertRecord, stats SummaryStats) string {
 	var mdContent strings.Builder
@@ -457,9 +535,69 @@ func buildWechatSummaryWithStats(title, nowStr string, records []AlertRecord, st
 	return mdContent.String()
 }
 
+// getPeriodDescription 获取监控周期描述
+func getPeriodDescription() string {
+	reportType := config.SummaryReport.ReportType
+	switch reportType {
+	case "daily":
+		return "每日 (00:00 - 24:00)"
+	case "weekly":
+		return "每周 (周一至周日)"
+	default:
+		return "最近24小时"
+	}
+}
+
+// sendNoAlertReport 发送无告警报告
+func sendNoAlertReport(title, nowStr, periodDesc string) {
+	// ==========================================
+	// A. 发送邮件
+	// ==========================================
+	if config.EnableEmail {
+		htmlContent := buildEmailNoAlert(title, nowStr, periodDesc)
+
+		go func() {
+			err := sendRawHtmlEmail(config.Email, title, htmlContent)
+			if err != nil {
+				log.Printf("发送无告警邮件失败: %v", err)
+			} else {
+				log.Printf("无告警邮件发送成功")
+			}
+		}()
+	}
+
+	// ==========================================
+	// B. 发送企业微信
+	// ==========================================
+	if config.WechatWork.Enabled {
+		var targetUrl string
+		if config.WechatWork.ProxyEnabled && config.WechatWork.ProxyUrl != "" {
+			key := extractKeyFromWebhookUrl(config.WechatWork.WebhookUrl)
+			targetUrl = fmt.Sprintf("%s/webhook?key=%s", config.WechatWork.ProxyUrl, key)
+		} else {
+			targetUrl = config.WechatWork.WebhookUrl
+		}
+
+		mdContent := fmt.Sprintf("# 📊 %s\n\n> 生成时间: %s\n> 监控周期: %s\n\n🎉 过去周期内无告警，所有监控项正常运行！", title, nowStr, periodDesc)
+
+		msg := WechatWorkMessage{
+			MsgType: "markdown",
+			Markdown: struct {
+				Content string `json:"content"`
+			}{Content: mdContent},
+		}
+
+		go sendWechatWorkRequest(targetUrl, msg)
+		log.Printf("企业微信无告警消息发送成功")
+	}
+}
+
 // *** 新增：生成并发送汇总报告 ***
 // sendSummaryReport 生成并发送汇总报告
 func sendSummaryReport() {
+	// 0. 备份当前的历史文件
+	backupAlertHistoryFile()
+
 	alertHistoryMutex.Lock()
 	// 1. 取出数据并清空历史
 	records := alertHistory
@@ -471,8 +609,19 @@ func sendSummaryReport() {
 	saveAlertHistory()
 
 	count := len(records)
+	nowStr := time.Now().Format("2006-01-02 15:04:05")
+
+	// 获取监控周期描述
+	periodDesc := getPeriodDescription()
+
 	if count == 0 {
-		log.Println("过去周期内无告警，跳过汇总报告")
+		if !config.SummaryReport.SendNoAlert {
+			log.Println("过去周期内无告警，跳过汇总报告")
+			return
+		}
+		log.Println("过去周期内无告警，发送无告警报告")
+		title := fmt.Sprintf("%s (无告警)", config.SummaryReport.Title)
+		sendNoAlertReport(title, nowStr, periodDesc)
 		return
 	}
 
@@ -481,7 +630,6 @@ func sendSummaryReport() {
 	// 生成统计信息
 	stats := generateSummaryStats(records)
 	title := fmt.Sprintf("%s (共 %d 条告警)", config.SummaryReport.Title, count)
-	nowStr := time.Now().Format("2006-01-02 15:04:05")
 
 	// ==========================================
 	// A. 发送邮件 (HTML 表格格式)

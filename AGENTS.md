@@ -20,12 +20,12 @@ bak/                    # Historical artifacts
 ### Build the daemon (from repo root)
 ```bash
 cd bin
-go build -o smas_v2.5.1_x86 smas_v2.5.1.go monitor_func_v2.5.1.go email_v2.5.1.go webhook_v2.5.1.go report_summary_v2.5.1.go sjjs_monitor_v2.5.1.go configWatcher.go pushplus_v2.5.1.go
+go build -o smas_v2.5.2_x86 smas_v2.5.2.go monitor_func_v2.5.2.go email_v2.5.2.go webhook_v2.5.2.go report_summary_v2.5.2.go sjjs_monitor_v2.5.2.go configWatcher.go pushplus_v2.5.2.go
 ```
 
 ### Run locally
 ```bash
-./smas_v2.5.1_x86
+./smas_v2.5.2_x86
 ```
 
 ### Format code
@@ -87,7 +87,7 @@ import (
 - **Structs**: PascalCase with descriptive names (e.g., `EmailTemplateData`)
 - **Interfaces**: PascalCase with -er suffix (e.g., `Reader`, `Writer`)
 - **Constants**: PascalCase or camelCase (e.g., `maxWorkers`, `checkCacheTTL`)
-- **Versioned files**: Use pattern `*_v2.5.1.go` - update version consistently
+- **Versioned files**: Use pattern `*_v2.5.2.go` - update version consistently
 - **JSON tags**: snake_case (e.g., `json:"cpu_threshold"`)
 
 ### Types

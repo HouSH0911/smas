@@ -543,7 +543,7 @@ func getCachedCheckData(address string) (*StatusResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.HttpTimeout)*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://%s:9600/check", address), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://%s:%d/check", address, config.AgentPort), nil)
 	if err != nil {
 		lastFailure.Store(address, FailureRecord{LastFail: time.Now(), Notified: false})
 		return nil, err
